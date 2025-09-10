@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Juego Memoria</title>
+  <style>
+    :root {
+      --ancho-carta: 120px;
+      --alto-carta: 160px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, Arial, Helvetica, sans-serif;
+      color: #fff; /* Color letra */
+      background: #c4ccd3 url("img/cars-8891625_960_720.jpg") center/cover fixed no-repeat;
+    }
+    .capa {
+      min-height: 100dvh;
+      padding: 24px 16px 40px;
+      background: radial-gradient(transparent, rgba(235, 96, 196, 0.7) 60%);
+    }
+    h1 { margin: 0 0 10px; text-align: center; font-weight: 800; }
+    #panel {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      align-items: center; justify-content: center;
+      background: rgba(0, 0, 0, 0.55);
+      padding: 10px 12px; border-radius: 10px;
+    }
+    #panel .dato {
+      background: #0f2a44; padding: 4px 8px; border-radius: 8px;
+    }
+    #btnComenzar {
+      cursor: pointer; border: 0; border-radius: 10px;
+      padding: 8px 14px; background: #ff8a00; color: #111; font-weight: 700;
+    }
+    #tablero {
+      width: min(95vh, 560px);
+      margin: 18px auto 10px;
+      display: grid;
+      grid-template-columns: repeat(4, var(--ancho-carta));
+      gap: 10px; justify-content: center;
+    }
+    .carta {
+      width: var(--ancho-carta); height: var(--alto-carta);
+      position: relative; perspective: 800px;
+      cursor: pointer; user-select: none;
+    }
+    .reverso, .cara {
+      position: absolute; inset: 0; border-radius: 12px;
+      backface-visibility: hidden;
+      background: #12263a url('img/9.jpg') center/cover no-repeat;
+    }
+    .cara { transform: rotateY(180deg); overflow: hidden; }
+    .cara img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 12px; }
+    .carta.volteada .cara { transform: rotateY(0deg); }
+    .carta.volteada .reverso { transform: rotateY(180deg); }
+    .carta.acertada .cara { filter: grayscale(0.2) brightness(1.05); cursor: default; }
+    .carta.acertada::after {
+      content: ""; position: absolute; inset: 0; border-radius: 12px;
+      background: url('ok.jpg') center/55px 55px no-repeat rgba(0, 255, 153, 0.15);
+      pointer-events: none;
+    }
+    table {
+      width: min(95vw, 720px);
+      margin: 10px auto; border-collapse: collapse;
+      background: rgba(0, 0, 0, 0.55);
+      border-radius: 10px; overflow: hidden;
+    }
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      text-align: left;
+    }
+    th { background: rgba(255, 255, 255, 0.06); }
+    .center { text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="capa">
+    <h1>JUEGO DE MEMORIA</h1>
+    <!-- PANEL -->
+    <div id="panel">
+      <span id="datoJugador" class="dato">Jugador: --</span>
+      <span id="datoNivel" class="dato">Nivel: 1</span>
+      <span id="datoAciertos" class="dato">Aciertos: 0</span>
+      <span id="datoIntentos" class="dato">Intentos: 0</span>
+      <span id="datoTiempo" class="dato">Tiempo: 30</span>
+      <button id="btnComenzar">Comenzar</button>
+    </div>
+    <!-- TABLERO -->
+    <h3 class="center" style="margin: 10px 0 6px">Tablero de Juego</h3>
+    <div id="tablero" aria-label="Tablero de cartas"></div>
+    <!-- TABLA JUGADORES -->
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Jugador</th><th>Nivel Alcanzado</th>
+          <th>Intentos</th><th>Aciertos</th><th>Tiempo Restante</th>
+        </tr>
+      </thead>
+      <tbody id="tablaJugadores"></tbody>
+    </table>
+  </div>
+
+  <!-- AUDIOS -->
+  <audio preload="auto" id="audioclickMp3" src="sonidos/click.mp3"></audio>
+  <audio preload="auto" id="audioRapidoMp3" src="sonidos/Rapido.mp3"></audio>
+  <audio preload="auto" id="audioPerdisteMp3" src="sonidos/perdiste..mp3"></audio>
+  <audio preload="auto" id="audioErrorMp3" src="sonidos/error.mp3"></audio>
+  <audio preload="auto" id="audioruidodefondoMp3" src="sonidos/ruido de fondo.mp3"></audio>
+  <audio preload="auto" id="audioJugarMp3" src="sonidos/jugar.mp3"></audio>
+  <audio preload="auto" id="audioGanaste" src="sonidos/Ganaste.mp3"></audio>
+
+  <script>
+    /* VARIABLES */
+    let nombreJugador = "";
+    let nivelActual = 1;
+    let aciertosEnNivel = 0;
+    let intentosTotales = 0;
+    const tiempoPorNivel = 30;
+    let tiempoRestante = tiempoPorNivel;
+
+    let idReloj = null;
+    let cartasVolteadas = [];
+    let bloqueoTablero = false;
+    let avisoDiezSegundos = false;
+
+    // IMÁGENES
+    const imagenesGatos = ['img/1.jpg','img/2.jpg','img/3.jpg','img/4.jpg','img/5.jpj.jpg','img/6.jpg'];
+    const imagenesConejos = ['img/conejo1.jpg','img/conejo2.jpg','img/conejo3.jpg','img/conejo4.jpg','img/conejo5.jpg','img/conejo6.jpg'];
+
+    const nivelesImagenes = [imagenesGatos, imagenesConejos];
+
+    // DOM
+    const elTablero = document.getElementById('tablero');
+    const elBtnComenzar = document.getElementById('btnComenzar');
+    const elDatoJugador = document.getElementById('datoJugador');
+    const elDatoNivel = document.getElementById('datoNivel');
+    const elDatoAciertos = document.getElementById('datoAciertos');
+    const elDatoIntentos = document.getElementById('datoIntentos');
+    const elDatoTiempo = document.getElementById('datoTiempo');
+    const elTablaJugadores = document.getElementById('tablaJugadores');
+
+    // AUDIOS
+    const audioClickMp3 = document.getElementById('audioclickMp3');
+    const audioCorrerMp3 = document.getElementById('audioRapidoMp3');
+    const audioDerrotaMp3 = document.getElementById('audioPerdisteMp3');
+    const audioErrorMp3 = document.getElementById('audioErrorMp3');
+    const audioJugarMp3 = document.getElementById('audioJugarMp3');
+    const audioFondoMp3 = document.getElementById('audioruidodefondoMp3');
+    const audioTriunfoMp3 = document.getElementById('audioGanaste');
+
+    /* BOTÓN COMENZAR */
+    elBtnComenzar.addEventListener('click', iniciarJuego);
+
+    function iniciarJuego() {
+      const nombre = prompt('Ingresa tu nombre');
+      if (!nombre) return;
+      nombreJugador = nombre.trim();
+      nivelActual = 1;
+      aciertosEnNivel = 0;
+      intentosTotales = 0;
+      avisoDiezSegundos = false;
+      tiempoRestante = tiempoPorNivel;
+
+      try { audioJugarMp3.play(); } catch (e) {}
+
+      actualizarPanel();
+      crearTableroParaNivel(nivelActual);
+      iniciarReloj();
+    }
+
+    /* PANEL */
+    function actualizarPanel() {
+      elDatoJugador.textContent = "Jugador: " + (nombreJugador || "-");
+      elDatoNivel.textContent = "Nivel: " + nivelActual;
+      elDatoAciertos.textContent = "Aciertos: " + aciertosEnNivel;
+      elDatoIntentos.textContent = "Intentos: " + intentosTotales;
+      elDatoTiempo.textContent = "Tiempo: " + tiempoRestante;
+    }
+
+    /* TABLERO */
+    function crearTableroParaNivel(nivel) {
+      elTablero.innerHTML = "";
+      cartasVolteadas = [];
+      bloqueoTablero = false;
+      avisoDiezSegundos = false;
+      tiempoRestante = tiempoPorNivel;
+      aciertosEnNivel = 0;
+      actualizarPanel();
+
+      const lista = nivelesImagenes[nivel - 1].slice();
+      const cartas = mezclar([...lista, ...lista]);
+
+      cartas.forEach((ruta, i) => {
+        const carta = document.createElement("div");
+        carta.className = "carta";
+        carta.dataset.ruta = ruta;
+        carta.dataset.index = i;
+
+        const reverso = document.createElement("div");
+        reverso.className = "reverso";
+
+        const cara = document.createElement("div");
+        cara.className = "cara";
+        const img = document.createElement("img");
+        img.src = ruta; img.alt = "Imagen carta";
+        cara.appendChild(img);
+
+        carta.appendChild(reverso);
+        carta.appendChild(cara);
+
+        carta.addEventListener("click", () => voltearCarta(carta));
+        elTablero.appendChild(carta);
+      });
+    }
+
+    function mezclar(arr) { return arr.sort(() => Math.random() - 0.5); }
+
+    function voltearCarta(carta) {
+      if (bloqueoTablero) return;
+      if (carta.classList.contains("volteada") || carta.classList.contains("acertada")) return;
+
+      audioClickMp3.play();
+      carta.classList.add("volteada");
+      cartasVolteadas.push(carta);
+
+      if (cartasVolteadas.length === 2) {
+        bloqueoTablero = true;
+        intentosTotales++;
+        actualizarPanel();
+
+        const [c1, c2] = cartasVolteadas;
+        if (c1.dataset.ruta === c2.dataset.ruta) {
+          audioJugarMp3.play();
+          c1.classList.add("acertada");
+          c2.classList.add("acertada");
+          aciertosEnNivel++;
+          cartasVolteadas = [];
+          bloqueoTablero = false;
+          actualizarPanel();
+
+          // 👉 Aquí está la verificación de nivel completo
+          if (aciertosEnNivel === nivelesImagenes[nivelActual - 1].length) {
+            clearInterval(idReloj);
+            audioTriunfoMp3.play();
+            nivelActual++;
+            if (nivelActual > nivelesImagenes.length) {
+              alert("¡Felicidades " + nombreJugador + ", ganaste el juego!");
+              guardarEnTabla();
+            } else {
+              alert("Nivel superado. Pasas al nivel " + nivelActual);
+              crearTableroParaNivel(nivelActual);
+              iniciarReloj();
+            }
+          }
+        } else {
+          audioErrorMp3.play();
+          setTimeout(() => {
+            c1.classList.remove("volteada");
+            c2.classList.remove("volteada");
+            cartasVolteadas = [];
+            bloqueoTablero = false;
+            actualizarPanel();
+          }, 1000);
+        }
+      }
+    }
+
+    /* RELOJ */
+    function iniciarReloj() {
+      clearInterval(idReloj);
+      idReloj = setInterval(() => {
+        tiempoRestante--;
+        actualizarPanel();
+
+        if (tiempoRestante === 10 && !avisoDiezSegundos) {
+          avisoDiezSegundos = true;
+          audioCorrerMp3.play();
+        }
+        if (tiempoRestante <= 0) {
+          clearInterval(idReloj);
+          audioDerrotaMp3.play();
+          guardarEnTabla();
+          alert("Tiempo agotado. Fin del juego.");
+        }
+      }, 1000);
+    }
+
+    /* TABLA */
+    function guardarEnTabla() {
+      const fila = document.createElement("tr");
+      fila.innerHTML = `
+        <td>${elTablaJugadores.children.length + 1}</td>
+        <td>${esc(nombreJugador)}</td>
+        <td>${nivelActual}</td>
+        <td>${intentosTotales}</td>
+        <td>${aciertosEnNivel}</td>
+        <td>${tiempoRestante}</td>
+      `;
+      elTablaJugadores.appendChild(fila);
+    }
+
+    function esc(t) {
+      return (t + '').replace(/[&<>"']/g, s => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]
+      ));
+    }
+  </script>
+</body>
+</html>
